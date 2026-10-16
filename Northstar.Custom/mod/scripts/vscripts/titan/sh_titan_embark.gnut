@@ -919,6 +919,13 @@ function EmbarkLine( player, titan )
 
 		// thread DelayedDisableEmbarkPlayerHud( player, sequence )
 
+		#if MP
+			if ( !doFirstPersonAnim && ShouldRunFirstPersonSequence( player, true, false ) )
+				FirstPersonSequenceForce1P( sequence, player, titan )
+		#endif
+
+		AddAnimEvent( player, "phase_shift_start", PhaseEmbarkPhaseStart )
+		AddAnimEvent( player, "phase_shift_stop", PhaseEmbarkPhaseStop )
 		AddAnimEvent( titan, "cockpit_light_start", CockpitLightStart )
 		AddAnimEvent( titan, "cockpit_light_stop", CockpitLightStop )
 
@@ -936,18 +943,6 @@ function EmbarkLine( player, titan )
 					titan.Die()
 			}
 		)
-
-		#if MP
-			if ( !doFirstPersonAnim && ShouldRunFirstPersonSequence( player, true, false ) )
-			{
-				FirstPersonSequenceForce1P( sequence, player, titan )
-				AddAnimEvent( player, "phase_shift_start", PhaseEmbarkPhaseStart_FP )
-				AddAnimEvent( player, "phase_shift_stop", PhaseEmbarkPhaseStop_FP )
-			}
-		#endif
-
-		AddAnimEvent( player, "phase_shift_start", PhaseEmbarkPhaseStart )
-		AddAnimEvent( player, "phase_shift_stop", PhaseEmbarkPhaseStop )
 
 		thread FirstPersonSequence( sequence, player, titan )
 		// EmitDifferentSoundsOnEntityForPlayerAndWorld( firstPersonAudio, thirdPersonAudio, titan, player )
@@ -1085,17 +1080,6 @@ function EmbarkLine( player, titan )
 		player.MakeInvisible()
 		PlayPhaseShiftDisappearFX( player )
 		EmitSoundOnEntity( player, "pilot_phaseembark_activate_3p" )
-
-		thread PhaseEmbarkPhaseCleanup( player )
-	}
-
-	void function PhaseEmbarkPhaseStart_FP( entity player )
-	{
-		player.MakeInvisible()
-		PlayPhaseShiftDisappearFX( player )
-		EmitSoundOnEntity( player, "pilot_phaseembark_activate_3p" )
-		player.PhaseShiftBegin( 0.0, 0.2 )
-
 		thread PhaseEmbarkPhaseCleanup( player )
 	}
 
@@ -1121,14 +1105,6 @@ function EmbarkLine( player, titan )
 		Signal( player, "PhaseEmbarkPhaseStop" )
 		PlayPhaseShiftDisappearFX( player )
 		EmitSoundOnEntity( player, "pilot_phaseembark_end_3p" )
-	}
-
-	void function PhaseEmbarkPhaseStop_FP( entity player )
-	{
-		Signal( player, "PhaseEmbarkPhaseStop" )
-		PlayPhaseShiftDisappearFX( player )
-		EmitSoundOnEntity( player, "pilot_phaseembark_end_3p" )
-		player.PhaseShiftCancel()
 	}
 
 	function ShouldSkipAheadIntoEmbark( standing, player, titan, e )
@@ -1675,10 +1651,11 @@ function PlayerCanDisembarkTitan( entity player )
 		while ( IsPlayerDisembarking( player ) )
 		{
 			Assert( Time() - currentTime < allowedTime ) // Failsafe of waiting 2 seconds in case SOMETHING REALLY GOES WRONG.
-			if ( !IsAlive( player ) )
-				return
 
 			WaitFrame()
+
+			if ( !IsAlive( player ) )
+				return
 		}
 
 		if ( player.ContextAction_IsActive() ) // Immediately after disembarking player might have gotten pulled into another context action e.g. embarking into evac dropship
@@ -1734,7 +1711,7 @@ function PlayerCanDisembarkTitan( entity player )
 		OnThreadEnd(
 			function() : ( player, e )
 			{
-				if ( IsValid( player ) )
+				if ( IsAlive( player ) )
 					thread DelayedSafePlayerLocationForDisembark( player, expect entity( e.titan ) )
 			}
 		)
